@@ -1,12 +1,15 @@
 # Guided Automation Project: Invoice Processing
 
-Welcome to the hands-on guided project! In this session, you will evolve from traditional RPA script writing to **Automation Engineering**.
+Imagine being handed a broken, fragile legacy script that crashes every time a website button moves, leaving the Finance team frustrated and drowning in paperwork. That’s the reality for many automation developers today. But not for you.
+
+Welcome to the hands-on guided project! In this session, you will evolve from traditional RPA script writing to **Automation Engineering**. You won't be building a screen-scraping bot that mimics human clicks. Instead, you'll learn to architect an enterprise-grade, headless Python backend. By the end of this journey, you will have built a resilient, API-driven solution that validates data mathematically, survives network crashes autonomously, and protects itself from insecure code—delivering a bulletproof solution that the Finance team can truly depend on.
 
 ## Prerequisite: Get Your Own Copy of this Repository
 
-> Before you start writing code, you need your own copy of this project so you can save your work and earn your certificate!
+| :warning: Before you start writing code, you need your own copy of this project so you can save your work and earn your certificate! |
+| ------------------------------------------------------------------------------------------------------------------------------------ |
 
-[![Fork Repository](https://img.shields.io/badge/1._Click_Here_To_Fork_This_Repository-black?style=for-the-badge&logo=github)](https://github.com/21010/ae-workshop-invoice-processing/fork)
+[![Fork Repository](https://img.shields.io/badge/Click_Here_To_Fork_This_Repository-black?style=for-the-badge&logo=github)](https://github.com/21010/ae-workshop-invoice-processing/fork)
 
 1. Click the **Fork** button above to create a copy in your personal GitHub account.
 2. Navigate to *your* new repository.
@@ -41,7 +44,10 @@ Welcome to the hands-on guided project! In this session, you will evolve from tr
 
 Sarah described her problem using a specific, fragile technical solution (a UI-clicking, a macro). As Automation Engineers, we know that UI automation frequently breaks when a website updates. Instead of building a screen-scraping bot, we will solve her underlying business requirements by building a headless, robust, API-driven Python backend.
 
-> **Caveat:** API-driven Python is strictly better *when an API exists*. For legacy mainframe green-screens, SAP GUI without BAPI, or vendor portals lacking REST endpoints, traditional RPA (UI automation) remains the correct architectural choice.\n\n### The Manual Process (As-Is)
+> **Caveat:** API-driven Python is strictly better *when an API exists*. For legacy mainframe green-screens, SAP GUI without BAPI, or vendor portals lacking REST endpoints, traditional RPA (UI automation) remains the correct architectural choice.
+
+### The Manual Process (As-Is)
+
 *Here is how Sarah's team currently processes invoices manually:*
 
 1. Open the Google Chrome browser and navigate to the internal ERP portal.
@@ -94,12 +100,17 @@ Before writing code, we must translate Sarah's request into a strict DDD enginee
 
 #### Understand the Domain & Identify Risks
 
+**What are we doing?** 
+In this section, we break down Sarah's email to map out the actual business reality. Before writing a single line of code, we will formalize the core workflow she described into a visual flowchart, define a shared vocabulary (the Ubiquitous Language), establish the business entities, and proactively identify the critical failure points (risks) that our software must mitigate.
+
 ##### The Core Workflow
+
+To understand what we are replacing, we first need to visualize Sarah's **As-Is (Current State)** process. This is the manual, screen-clicking workflow her team currently suffers through every day. It explicitly highlights the logic her team follows to process invoices, serving as the blueprint for our backend automation.
 
 Acquire pending invoices, verify data integrity (math validation), apply business rules ($10,000 threshold), and execute the approval.
 
    ```mermaid
-   flowchart TD
+   flowchart LR
        A((Start)) --> B(Log into ERP Portal)
        B --> C(Navigate to Pending Invoices)
        C --> D{Invoices Remain?}
@@ -117,10 +128,12 @@ Acquire pending invoices, verify data integrity (math validation), apply busines
 
 ##### Risks
 
+In Domain-Driven Design, we categorize risks to figure out *where* our code should handle them. **Domain Risks** relate to the core business logic—such as Sarah mentioning the upstream vendor system glitching and sending corrupt invoice math. These must be caught by our core validation rules. **Infrastructure Risks** deal with the chaotic outside world—like the ERP portal crashing with 503 errors. These must be handled at the absolute boundary of our application using resilient network strategies.
+
 | ID | Type | Risk | Mitigation |
 | :- | :--- | :--- | :--------- |
-| R-01 | Domain Risk | The upstream system occasionally sends corrupted payloads where the math does not add up. | We will implement strict data validation at the absolute boundary of our application to reject bad payloads before they ever reach our core logic. |
-| R-02 | Infrastructure Risk | The target ERP API is known to drop connections and throw 503 errors. | We will isolate all API calls and wrap them in an exponential backoff retry loop. |
+| R-D-01 | Domain Risk | The upstream system occasionally sends corrupted payloads where the math does not add up. | We will implement strict data validation at the absolute boundary of our application to reject bad payloads before they ever reach our core logic. |
+| R-I-02 | Infrastructure Risk | The target ERP API is known to drop connections and throw 503 errors. | We will isolate all API calls and wrap them in an exponential backoff retry loop. |
 
 #### Define the Ubiquitous Language & Entities
 
@@ -130,15 +143,19 @@ In addition to the `Invoice` and `LineItem`, we also define `Vendor` and `Curren
 
 #### Map the Architecture Layers
 
-We will not write a single, procedural script. Instead, we divide the responsibilities:
+To ensure our solution is robust and can survive technology shifts, we map our components using the **Ports and Adapters** (Hexagonal) architecture. We separate the pure business rules (the Domain) from the technical implementation details (the Infrastructure). If Sarah's Finance team decides to switch from this specific ERP system to SAP next year, our Domain rules (e.g., the $10,000 threshold and math validation) won't need to change at all. We will only need to swap out the Infrastructure adapter.
 
-* **The Infrastructure Layer:** This layer is solely responsible for talking to the unstable external world. It handles the HTTP requests and the retry loops.
-* **The Domain Layer:** This layer is strictly isolated from the network. It contains our `Invoice` models and the validation rules.
-* **The Application Layer:** This is the orchestrator (or Use Case). It fetches data from the Infrastructure, passes it to the Domain for validation, applies the $10,000 threshold rule, and tells the Infrastructure to approve the valid invoices.
+| Layer | Description |
+| :---- | :---------- |
+| **Infrastructure** | This layer is solely responsible for talking to the unstable external world. It handles the HTTP requests and the retry loops. |
+| **Domain** | This layer is strictly isolated from the network. It contains our `Invoice` models and the validation rules. |
+| **Application** | This is the orchestrator (or Use Case). It fetches data from the Infrastructure, passes it to the Domain for validation, applies the $10,000 threshold rule, and tells the Infrastructure to approve the valid invoices. |
 
 #### Design the Automated Workflow (To-Be)
 
-Instead of opening Chrome and calculating math manually, our API-driven Python backend will execute the following architecture:
+Now that we have separated our concerns into distinct architectural layers and established our Ubiquitous Language, we can design the **To-Be (Future State)** workflow. Notice how this new diagram maps directly to our layered architecture: fetching invoices happens in the Infrastructure, validating math and applying thresholds happens in the Domain, and the Application orchestrator coordinates the flow. 
+
+Instead of opening Chrome and calculating math manually, our API-driven Python backend will invisibly and reliably execute the following flow:
 
    ```mermaid
    flowchart LR
@@ -156,14 +173,10 @@ Instead of opening Chrome and calculating math manually, our API-driven Python b
        Next --> Loop
    ```
 
-This flowchart accurately models the target state. We use this behavioral flow diagram rather than a static UML class diagram because our primary goal is to map the orchestration of the workflow and the business rules, rather than purely focusing on object inheritance.
-
 ### Project Initialization
 
 <details>
-<summary>
-    <b>📚 Click here to learn more about: Reproducible Environments & The `uv` Package Manager</b>
-</summary>
+<summary><b>📚 Click here to learn more about: Reproducible Environments & The `uv` Package Manager</b></summary>
 
 > **1. The Modern Standard (PEP 621)**
 >
@@ -294,63 +307,75 @@ git branch -M main
 
 #### Set up the automated security gates
 
-   Create a file named `.pre-commit-config.yaml` in the root directory.
+Create a file named `.pre-commit-config.yaml` in the root directory.
 
-   > **Connecting the tools:** Remember those `--dev` tools we installed in Step 1? We are now configuring Git to use them! Notice how we force Git to execute them locally via `uv run`. This guarantees that tools like `ruff` (for formatting) and `bandit` (for scanning Python vulnerabilities) run securely inside our isolated environment. We also add `trufflehog` to scan for accidentally hardcoded API keys or passwords.
+**Connecting the tools** 
+: We are now configuring Git to execute a powerful pipeline of automated security and formatting gates.
+: We leverage official pre-commit hooks (like the standalone `trufflehog` v3 hook) and force Git to execute our locally installed `--dev` tools (like `uv audit` and `pytest-unit`) via `uv run`.
+: This guarantees that formatting tools (`ruff`) and static analyzers (`bandit`, `pyrefly`) run flawlessly inside our isolated environment. We've also included `gitlint` to keep our commit messages clean!
 
-   <details>
-   <summary><b>💡 Click here to copy the pre-commit configuration</b></summary>
+<details>
+<summary><b>💡 Click here to copy the pre-commit configuration</b></summary>
 
-   ```yaml
-   fail_fast: true
-   repos:
-     - repo: local
-       hooks:
-         - id: trufflehog
-           name: trufflehog
-           entry: uv run trufflehog --regex --entropy=False --repo_path . .
-           language: system
-           pass_filenames: false
-     - repo: local
-       hooks:
-         - id: ruff
-           name: ruff
-           entry: uv run ruff check --fix
-           language: system
-           types: [python]
-           require_serial: true
-         - id: ruff-format
-           name: ruff-format
-           entry: uv run ruff format
-           language: system
-           types: [python]
-         - id: bandit
-           name: bandit
-           entry: uv run bandit -c pyproject.toml -r src/
-           language: system
-           types: [python]
-           pass_filenames: false
-         - id: pyrefly
-           name: pyrefly
-           entry: uv run pyrefly check
-           language: system
-           types: [python]
-           pass_filenames: false
-         - id: uv-audit
-           name: uv audit
-           entry: uv audit
-           language: system
-           pass_filenames: false
-           always_run: true
-         - id: pytest-unit
-           name: pytest unit
-           entry: uv run pytest -m unit
-           language: system
-           pass_filenames: false
-           always_run: true
-   ```
+```yaml
+fail_fast: true
+repos:
+  - repo: https://github.com/trufflesecurity/trufflehog
+    rev: v3.88.10
+    hooks:
+      - id: trufflehog
 
-   </details>
+  - repo: local
+    hooks:
+      - id: uv-audit
+        name: uv audit
+        entry: uv audit
+        language: system
+        pass_filenames: false
+        always_run: true
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-added-large-files
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.3.0
+    hooks:
+      - id: ruff
+        args: [ --fix ]
+      - id: ruff-format
+
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.8
+    hooks:
+      - id: bandit
+        args: ["-c", "pyproject.toml"]
+        additional_dependencies: ["bandit[toml]"]
+
+  - repo: local
+    hooks:
+      - id: pyrefly
+        name: pyrefly
+        entry: uv run pyrefly
+        language: system
+        types: [python]
+        require_serial: true
+
+      - id: pytest-unit
+        name: pytest unit
+        entry: uv run pytest -m unit
+        language: system
+        pass_filenames: false
+        always_run: true
+
+  - repo: https://github.com/jorisroovers/gitlint
+    rev: v0.19.1
+    hooks:
+      - id: gitlint
+```
+
+</details>
 
 #### Install the hooks into Git
 
@@ -457,9 +482,9 @@ New-Item -ItemType File -Force -Path src/domain/__init__.py, src/application/__i
 
 #### Configure Pytest Markers
 
-We told our `pre-commit` hook to only run tests marked as `unit`.
+We told our `pre-commit` hook to only run tests marked as `unit`. We must register this custom label in our `pyproject.toml` so Pytest understands it. 
 
-We must register this custom label in our `pyproject.toml` so Pytest understands it. Open `pyproject.toml` and add this block to the bottom:
+Open `pyproject.toml` and add this block to the bottom:
 
 ```toml
 [tool.pytest.ini_options]
@@ -553,12 +578,15 @@ Sarah's business requirement explicitly stated that the ERP math is sometimes co
 
 #### Create the Data Models (`src/domain/models.py`)
 
-> *What are we doing?*
->
-> * We are creating the strict definitions for `LineItem` and `Invoice`.
-> * We are also writing a custom validator to explicitly perform the math check that Sarah requested.
+*What are we doing?*
+: We are creating the strict definitions for `LineItem` and `Invoice`.
+: We are also writing a custom validator to explicitly perform the math check that Sarah requested.
 
-**Challenge:** *Try to write the `LineItem` and `Invoice` Pydantic models yourself! Use the `@model_validator(mode="after")` decorator to sum the line items and raise a `ValueError` if the math is wrong.*
+> **Challenge:**
+> 
+> Try to write the `LineItem` and `Invoice` Pydantic models yourself!
+> 
+> Use the `@model_validator(mode="after")` decorator to sum the line items and raise a `ValueError` if the math is wrong.
 
 <details>
 <summary><b>💡 Click here for hints</b></summary>
@@ -628,40 +656,56 @@ class Invoice(BaseModel):
 
 #### Prove the Defense Works (`tests/unit/test_domain.py`)
 
-> *What are we doing?*
->
-> * We are practicing Test-Driven Development (TDD).
-> * Before we connect to the real API, we write a lightning-fast unit test simulating a corrupted invoice to definitively prove that our Pydantic model will reject it.
+*What are we doing?*
+: We are practicing Test-Driven Development (TDD).
+: Before we connect to the real API, we write a lightning-fast unit test simulating a corrupted invoice to definitively prove that our Pydantic model will reject it.
 
-**Challenge:** *Write a Pytest function labeled `@pytest.mark.unit`. Create an invoice with bad math and use `with pytest.raises(ValueError):` to prove your validation catches it!*
+> **Challenge:**
+>
+> Write a Pytest function labeled `@pytest.mark.unit`.
+> Create an invoice with bad math and use `with pytest.raises(ValueError):` to prove your validation catches it!*
 
 <details>
-<summary><b>💡 Click here for hints</b></summary>
+    <summary><b>💡 Click here for hints</b></summary>
 
-> **Hints:**
->
-> * Use the `Invoice` class you just created.
-> * Pass in invalid `total_amount` data intentionally.
-> * Wrap the object creation inside a `with pytest.raises(ValueError):` context manager.
+    > **Hints:**
+    >
+    > * Use the `Invoice` class you just created.
+    > * Pass in invalid `total_amount` data intentionally.
+    > * Wrap the object creation inside a `with pytest.raises(ValueError):` context manager.
 
-<details>
-<summary><b>💡 Click here to show the full solution snippet</b></summary>
+    <details>
+        <summary><b>💡 Click here to show the solution snippet</b></summary>
 
-```python
-import pytest
-from src.domain.models import Invoice, LineItem
+        ```python
+        import pytest
+        from src.domain.models import Invoice, LineItem
 
-@pytest.mark.unit
-def test_bad_math_is_rejected():
-    with pytest.raises(ValueError):
-        Invoice(
-            id="1", vendor="A", currency="USD",
-            line_items=[LineItem(description="Item", amount=50)],
-            total_amount=9000  # Data Corruption!
-        )
-```
+        @pytest.mark.unit
+        def test_bad_math_is_rejected():
+            with pytest.raises(ValueError):
+                # TODO: initialize `Invoive` with corrupted data - total_amount != sum of amount in line_items
+        ```
 
-</details>
+        <details>
+            <summary><b>💡 Click here to show the full solution snippet</b></summary>
+
+            ```python
+            import pytest
+            from src.domain.models import Invoice, LineItem
+
+            @pytest.mark.unit
+            def test_bad_math_is_rejected():
+                with pytest.raises(ValueError):
+                    Invoice(
+                        id="1", vendor="A", currency="USD",
+                        line_items=[LineItem(description="Item", amount=50)],
+                        total_amount=9000  # Data Corruption!
+                    )
+            ```
+
+        </details>
+    </details>
 </details>
 
 #### Run the Defense Test
@@ -757,20 +801,22 @@ Read the OpenAPI contract to discover the exact HTTP verbs and endpoints needed 
 
 #### Create the API Client (`src/infrastructure/api_client.py`)
 
-> *What are we doing?*
->
-> * We are building the `APIClient`. We use `requests` to handle the HTTP protocol, ensuring we set a strict `timeout` on every call.
-> * We then decorate our POST request with `@retry` to guarantee it survives Sarah's dreaded 503 errors.
+*What are we doing?*
+: We are building the `APIClient`. We use `requests` to handle the HTTP protocol, ensuring we set a strict `timeout` on every call.
+: We then decorate our POST request with `@retry` to guarantee it survives Sarah's dreaded 503 errors.
 
-**Challenge**: *Build the client using the endpoints you discovered in the Swagger UI. Automatically cast the JSON response into your Pydantic `Invoice` models!*
+> **Challenge**
+>
+> Build the client using the endpoints you discovered in the Swagger UI.
+>
+> Automatically cast the JSON response into your Pydantic `Invoice` models!*
 
 <details>
 <summary><b>💡 Click here for hints</b></summary>
 
-> **Hints:**
->
-> * Use `requests.get()` to fetch the data (check the Swagger UI at `/docs` for the exact endpoint URL).
-> * Remember that because of our strict Pydantic model, initializing `Invoice` might throw a `ValueError` if the math is corrupted! Wrap that line in a `try/except` block so you can log the error and `continue` to the next invoice.
+**Hints:**
+: Use `requests.get()` to fetch the data (check the Swagger UI at `/docs` for the exact endpoint URL).
+: Remember that because of our strict Pydantic model, initializing `Invoice` might throw a `ValueError` if the math is corrupted! Wrap that line in a `try/except` block so you can log the error and `continue` to the next invoice.
 
 <details>
 <summary><b>💡 Still stuck? Click here for a code scaffold</b></summary>
@@ -834,17 +880,15 @@ class FastAPIClient:
 
 #### Configure the ERP Mock Data (`tests/conftest.py`)
 
-> *What are we doing?*
->
-> * We are creating a reusable Pytest fixture containing the raw JSON dictionary that the ERP system normally returns. Any test can now access this fake data!
+*What are we doing?*
+: We are creating a reusable Pytest fixture containing the raw JSON dictionary that the ERP system normally returns. Any test can now access this fake data!
 
 <details>
 <summary><b>💡 Click here for hints</b></summary>
 
-> **Hints:**
->
-> * Use the `@pytest.fixture` decorator above a function named `mock_erp_json`.
-> * Return a list containing a single dictionary representing an invoice payload (include fields like `id`, `vendor`, `currency`, `line_items`, and `total_amount`).
+**Hints:**
+: Use the `@pytest.fixture` decorator above a function named `mock_erp_json`.
+: Return a list containing a single dictionary representing an invoice payload (include fields like `id`, `vendor`, `currency`, `line_items`, and `total_amount`).
 
 <details>
 <summary><b>💡 Click here to show the full solution snippet</b></summary>
@@ -868,11 +912,14 @@ def mock_erp_json():
 
 #### Prove the Infrastructure Works (`tests/unit/test_api_client.py`)
 
-> *What are we doing?*
->
-> * We write a Unit test. Notice how we inject `mock_erp_json` into the function, and use `@patch` to intercept `requests.get`. We tell the intercepted request to return our fake JSON instead of hitting the network!
+*What are we doing?*
 
-**Challenge:** *Create a unit test labeled `@pytest.mark.unit`. Use `@patch` and your `mock_erp_json` fixture to assert that your client correctly parses the fake data into a Pydantic model.*
+* We write a Unit test.
+* Notice how we inject `mock_erp_json` into the function, and use `@patch` to intercept `requests.get`. We tell the intercepted request to return our fake JSON instead of hitting the network!
+
+> **Challenge**
+> Create a unit test labeled `@pytest.mark.unit`.
+> Use `@patch` and your `mock_erp_json` fixture to assert that your client correctly parses the fake data into a Pydantic model.*
 
 <details>
 <summary><b>💡 Click here for hints</b></summary>
